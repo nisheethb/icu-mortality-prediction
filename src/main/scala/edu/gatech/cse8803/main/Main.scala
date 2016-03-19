@@ -47,7 +47,7 @@ object Main {
 
     val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssX")
 
-    List("data/PATIENT.csv", "data/LAB.csv", "data/DIAGNOSTIC.csv", "data/MEDICATION.csv")
+    List("data/test/PATIENT.csv", "data/test/LAB.csv", "data/test/DIAGNOSTIC.csv", "data/test/MEDICATION.csv")
       .foreach(CSVUtils.loadCSVAsTable(sqlContext, _))
 
     val patient = sqlContext.sql( // fix this
