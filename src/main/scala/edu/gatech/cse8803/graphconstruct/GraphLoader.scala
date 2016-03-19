@@ -19,6 +19,12 @@ object GraphLoader {
   def load(patients: RDD[PatientProperty], labResults: RDD[LabResult],
            medications: RDD[Medication], diagnostics: RDD[Diagnostic]): Graph[VertexProperty, EdgeProperty] = {
 
+    val labResultsLatest = labResults.map(l => (l.patientID, l))
+                                        .reduceByKey((l1 , l2) => {if (l1.date > l2.date) l1 else l2})
+                                        .map(l => l._2)
+
+    labResults.take(5).foreach(println)
+    labResultsLatest.take(5).foreach(println)
     /** HINT: See Example of Making Patient Vertices Below */
     val vertexPatient: RDD[(VertexId, VertexProperty)] = patients
       .map(patient => (patient.patientID.toLong, patient.asInstanceOf[VertexProperty]))
@@ -33,6 +39,8 @@ object GraphLoader {
       .map({p =>
         Edge(p.patientID.toLong, p.patientID.toLong, SampleEdgeProperty("sample").asInstanceOf[EdgeProperty])
       })
+
+
 
     // Making Graph
     val graph: Graph[VertexProperty, EdgeProperty] = Graph(vertexPatient, edgePatientPatient)
