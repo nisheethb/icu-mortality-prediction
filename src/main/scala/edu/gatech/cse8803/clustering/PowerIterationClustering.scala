@@ -32,8 +32,10 @@ object PowerIterationClustering {
       .setMaxIterations(100)
 
     val model = pic.run(similarities)
+
+    //case class PatientCluster(patientID: Long, clusterLabel: Int)
     val clusterLabels = model.assignments.map{ f =>
-      (f.id, f.cluster)
+     (f.id, f.cluster)
     }.collect.toList
 
 

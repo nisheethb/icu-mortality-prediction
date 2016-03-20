@@ -42,6 +42,14 @@ object Jaccard {
         (bid, jacSim)
     }
 
+    /** Sanity checks */
+    val onevallcount = pands.count()
+    println("one v all count and values below: ", onevallcount)
+    val top10printing = pands.top(15){
+      Ordering.by(_._2)
+    }.toList
+    top10printing.foreach(println)
+
     val top10p = pands.top(10){
       Ordering.by(_._2)
     }.map(x => x._1).toList
@@ -84,14 +92,15 @@ object Jaccard {
         (srcId, dstId, jSim)
     }
 
-    /**top10
+    /** Begin of sanity checks */
+
     val top10all = sims.top(10){
       Ordering.by(_._3)
     }.toList
-
-    println("allvall")
+    val allvallcount = sims.count()
+    println("allvall ccount and values below: ", allvallcount)
     top10all.foreach(println)
-      */
+    /** end of sanity checks */
 
     val allSims = sims.collect.toList
 
@@ -113,7 +122,7 @@ object Jaccard {
         {
           sij = aib.toDouble / aub.toDouble
     }
-    /** Remove this placeholder and implement your code */
+
     sij
   }
 }

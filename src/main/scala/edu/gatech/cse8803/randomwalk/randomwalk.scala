@@ -88,7 +88,15 @@ object RandomWalk {
         Ordering.by(_._2)
       }.map(f => f._1).toList
 
-    /** Remove this placeholder and implement your code */
+    /** begin sanity checks */
+    val top15 = rankedVertices
+      .top(15){
+        Ordering.by(_._2)
+      }.toList
+    println("Random walk output:")
+    top15.foreach(println)
+    /** end sanity checks */
+
     top10
   }
 }
