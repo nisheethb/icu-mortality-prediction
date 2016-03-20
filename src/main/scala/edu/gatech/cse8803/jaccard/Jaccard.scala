@@ -18,12 +18,6 @@ object Jaccard {
       * For ties, random order is okay
     */
 
-    val otherPatients = graph.vertices
-      .filter(_._2.isInstanceOf[PatientProperty])
-      .map(_._2.asInstanceOf[PatientProperty])
-      .map(_.patientID.toLong)
-      .filter(p => p != patientID)
-
     val maxPatientID = graph.vertices
       .filter(_._2.isInstanceOf[PatientProperty])
       .map(_._2.asInstanceOf[PatientProperty])
@@ -70,13 +64,39 @@ object Jaccard {
       .map(_._2.asInstanceOf[PatientProperty])
       .map(_.patientID.toLong)
       .max()
+
     val patientAndNeighbors = graph.collectNeighborIds(EdgeDirection.Out).filter(p => p._1 <= maxPatientID)
 
-    val combinations = patientAndNeighbors.cartesian(patientAndNeighbors)
+    val patientPairs = patientAndNeighbors.cartesian(patientAndNeighbors)
+      .filter{case (a, b) => a._1 != b._1}
       .filter{case (a, b) => a._1 < b._1}
 
 
-    sc.parallelize(Seq((1L, 2L, 0.5d), (1L, 3L, 0.4d)))
+    val sims = patientPairs.map{
+      f =>
+        val srcId = f._1._1
+        val dstId = f._2._1
+
+        val srcAttrs = f._1._2.toSet
+        val dstAttrs = f._2._2.toSet
+        val jSim = jaccard(srcAttrs, dstAttrs)
+
+        (srcId, dstId, jSim)
+    }
+
+    /**top10
+    val top10all = sims.top(10){
+      Ordering.by(_._3)
+    }.toList
+
+    println("allvall")
+    top10all.foreach(println)
+      */
+
+    val allSims = sims.collect.toList
+
+    sc.parallelize(allSims)
+
   }
 
   def jaccard[A](a: Set[A], b: Set[A]): Double = {
