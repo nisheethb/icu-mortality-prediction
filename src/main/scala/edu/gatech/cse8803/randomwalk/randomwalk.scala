@@ -13,6 +13,12 @@ object RandomWalk {
     For ties, random order is okay
     */
 
+    val maxPatientID = graph.vertices
+      .filter(_._2.isInstanceOf[PatientProperty])
+      .map(_._2.asInstanceOf[PatientProperty])
+      .map(_.patientID.toLong)
+      .max()
+
     /**
       * Based on PageRank: https://github.com/apache/spark/blob/master/graphx/src/main/scala/org/apache/spark/graphx/lib/PageRank.scala
       */
@@ -73,10 +79,16 @@ object RandomWalk {
       iteration += 1
     }
 
-    val top15 = rankGraph.vertices.map(_._2).take(15)
-    top15.foreach(println)
+    val rankedVertices = rankGraph.vertices
+      .filter(f => f._1 <= maxPatientID)
+      .filter(f => f._1 != patientID)
+
+    val top10 = rankedVertices
+      .top(10){
+        Ordering.by(_._2)
+      }.map(f => f._1).toList
 
     /** Remove this placeholder and implement your code */
-    List(1,2,3,4,5)
+    top10
   }
 }

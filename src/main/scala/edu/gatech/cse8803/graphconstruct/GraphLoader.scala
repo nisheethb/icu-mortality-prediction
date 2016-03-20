@@ -186,7 +186,6 @@ object GraphLoader {
     val graph: Graph[VertexProperty, EdgeProperty] = Graph(allVertices, allEdges)
 
     val numEdges = graph.edges.count()
-    val numDiagEdges = graph.edges.filter(_.isInstanceOf[PatientDiagnosticEdgeProperty]).count()
 
     val numVertices = graph.vertices.count()
     val numPatientVertices = graph.vertices.filter(_._2.isInstanceOf[PatientProperty]).count()
@@ -194,8 +193,8 @@ object GraphLoader {
     val numMedVertices = graph.vertices.filter(_._2.isInstanceOf[MedicationProperty]).count()
     val numLabVertices = graph.vertices.filter(_._2.isInstanceOf[LabResultProperty]).count()
 
-    println("Vertices: Total, Patient, Diag, Med, Lab", numVertices, numPatientVertices, numDiagVertices, numMedVertices, numLabVertices)
-    println("Edges: Total, Diag", numEdges, numDiagEdges)
+    //println("Vertices: Total, Patient, Diag, Med, Lab", numVertices, numPatientVertices, numDiagVertices, numMedVertices, numLabVertices)
+
     graph
   }
 }
