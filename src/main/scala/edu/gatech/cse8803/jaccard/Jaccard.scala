@@ -30,14 +30,30 @@ object Jaccard {
       .map(_.patientID.toLong)
       .max()
 
-    val patientVertices = graph.vertices.filter(_._2.isInstanceOf[PatientProperty])
+    val patientAndNeighbors = graph.collectNeighborIds(EdgeDirection.Out).filter(p => p._1 <= maxPatientID)
+    val patientAndNeighbors2 = graph.collectNeighborIds(EdgeDirection.Out)
+      .filter(p => p._1 <= maxPatientID)
+      .filter(p => p._1 != patientID)
 
-    val patientneigborids = graph.collectNeighborIds(EdgeDirection.Out).filter(p => p._1 <= maxPatientID)
-    val patientAneighbors = patientneigborids.filter(p => p._1 == patientID).map(p => p._2)
+    // for patientID, get their neighbors:
+    val patientA_Attrs = patientAndNeighbors.filter(p => p._1 == patientID).map(_._2)
+    val a_attrs = patientA_Attrs.collect.flatten.toSet
 
+    val pands = patientAndNeighbors2.map{
+      f =>
+        val bid = f._1
+        val b_attrs = f._2.toSet
+        val jacSim = jaccard(a_attrs, b_attrs)
+
+        (bid, jacSim)
+    }
+
+    val top10p = pands.top(10){
+      Ordering.by(_._2)
+    }.map(x => x._1).toList
 
     /** Remove this placeholder and implement your code */
-    List(1,2,3,4,5)
+    top10p
   }
 
   def jaccardSimilarityAllPatients(graph: Graph[VertexProperty, EdgeProperty]): RDD[(Long, Long, Double)] = {
@@ -48,6 +64,18 @@ object Jaccard {
     */
 
     val sc = graph.edges.sparkContext
+
+    val maxPatientID = graph.vertices
+      .filter(_._2.isInstanceOf[PatientProperty])
+      .map(_._2.asInstanceOf[PatientProperty])
+      .map(_.patientID.toLong)
+      .max()
+    val patientAndNeighbors = graph.collectNeighborIds(EdgeDirection.Out).filter(p => p._1 <= maxPatientID)
+
+    val combinations = patientAndNeighbors.cartesian(patientAndNeighbors)
+      .filter{case (a, b) => a._1 < b._1}
+
+
     sc.parallelize(Seq((1L, 2L, 0.5d), (1L, 3L, 0.4d)))
   }
 
