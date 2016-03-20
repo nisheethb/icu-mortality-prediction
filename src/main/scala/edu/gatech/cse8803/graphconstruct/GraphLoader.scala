@@ -50,7 +50,6 @@ object GraphLoader {
       .map(patient => (patient.patientID.toLong, patient.asInstanceOf[VertexProperty]))
 
     val startIndex_diag = patients.map(patient => patient.patientID.toLong).max() + 1
-    println("max vertex patient: ", startIndex_diag)
 
     /** Make the vertices for diag */
     val diagVertexIdRDD = diagnostics
@@ -186,6 +185,17 @@ object GraphLoader {
     // Making Graph
     val graph: Graph[VertexProperty, EdgeProperty] = Graph(allVertices, allEdges)
 
+    val numEdges = graph.edges.count()
+    val numDiagEdges = graph.edges.filter(_.isInstanceOf[PatientDiagnosticEdgeProperty]).count()
+
+    val numVertices = graph.vertices.count()
+    val numPatientVertices = graph.vertices.filter(_._2.isInstanceOf[PatientProperty]).count()
+    val numDiagVertices = graph.vertices.filter(_._2.isInstanceOf[DiagnosticProperty]).count()
+    val numMedVertices = graph.vertices.filter(_._2.isInstanceOf[MedicationProperty]).count()
+    val numLabVertices = graph.vertices.filter(_._2.isInstanceOf[LabResultProperty]).count()
+
+    println("Vertices: Total, Patient, Diag, Med, Lab", numVertices, numPatientVertices, numDiagVertices, numMedVertices, numLabVertices)
+    println("Edges: Total, Diag", numEdges, numDiagEdges)
     graph
   }
 }
