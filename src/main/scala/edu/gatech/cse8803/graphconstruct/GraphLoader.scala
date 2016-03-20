@@ -34,17 +34,6 @@ object GraphLoader {
       .map(l => Medication(l._2.patientID, l._2.date, l._2.medicine))
 
 
-    /** Check the counts of taking only the latest events
-    println("patient count: ", patients.count())
-    println("lab events count: ", labResults.count())
-    println("diag events count: ", diagnostics.count())
-    println("med events count: ", medications.count())
-    println("lab results latest count: ", labResultsLatest.count())
-    println("diag results latest count: ", diaglatest.count())
-    println("med results latest count: ", medlatest.count())
-
-      */
-
     /** HINT: See Example of Making Patient Vertices Below */
     val vertexPatient: RDD[(VertexId, VertexProperty)] = patients
       .map(patient => (patient.patientID.toLong, patient.asInstanceOf[VertexProperty]))
@@ -95,16 +84,6 @@ object GraphLoader {
       .map{case(medicine, index) => (index, MedicationProperty(medicine))}
       .asInstanceOf[RDD[(VertexId, VertexProperty)]]
 
-    /** Some prints
-    println("diag vertex count: ", vertexDiag.count())
-    println("lab vertex count: ", vertexLab.count())
-    println("med vertex count: ", vertexMed.count)
-    println("diag vertex id start: ", startIndex_diag)
-    println("lab vertex id start: ", startIndex_lab)
-    println("med vertex id start: ", startIndex_med)
-    println("med vertex id end: ", endIndex_med)
-      */
-
     val diagnostic2VertexId = diagVertexIdRDD.collect.toMap
     val lab2VertexId = labVertexIdRDD.collect.toMap
     val med2VertexId = medVertexRDD.collect.toMap
@@ -118,12 +97,14 @@ object GraphLoader {
       *
       * This is just sample edges to give you an example.
       * You can remove this PatientPatient edges and make edges you really need
-      * */
+      *
     case class PatientPatientEdgeProperty(someProperty: SampleEdgeProperty) extends EdgeProperty
     val edgePatientPatient: RDD[Edge[EdgeProperty]] = patients
       .map({p =>
         Edge(p.patientID.toLong, p.patientID.toLong, SampleEdgeProperty("sample").asInstanceOf[EdgeProperty])
       })
+
+      */
 
     val edgePatientDiagnostic: RDD[Edge[EdgeProperty]] = diaglatest
       .map{
@@ -185,7 +166,7 @@ object GraphLoader {
     // Making Graph
     val graph: Graph[VertexProperty, EdgeProperty] = Graph(allVertices, allEdges)
 
-    /** Begin of sanity checks */
+    /** Begin of sanity checks
     val numEdges = graph.edges.count()
     val numVertices = graph.vertices.count()
     val numPatientVertices = graph.vertices.filter(_._2.isInstanceOf[PatientProperty]).count()
@@ -195,7 +176,7 @@ object GraphLoader {
 
     println("Vertices: Total, Patient, Diag, Med, Lab", numVertices, numPatientVertices, numDiagVertices, numMedVertices, numLabVertices)
     println("Edges count: ", numEdges)
-    /** End of sanity checks */
+     End of sanity checks */
 
     graph
   }

@@ -42,10 +42,10 @@ object PowerIterationClustering {
     /** Remove placeholder code below and run Spark's PIC implementation */
     val clusteringResult = sc.parallelize(clusterLabels)
 
-    /** A sanity check
+    /** Begin of sanity checks
     val clusterCounts = clusteringResult.map(f => (f._2, 1.0)).reduceByKey(_ + _)
     clusterCounts.collect.foreach(println)
-      */
+    End of sanity checks  */
 
     clusteringResult
   }

@@ -88,14 +88,14 @@ object RandomWalk {
         Ordering.by(_._2)
       }.map(f => f._1).toList
 
-    /** begin sanity checks */
+    /** begin sanity checks
     val top15 = rankedVertices
       .top(15){
         Ordering.by(_._2)
       }.toList
     println("Random walk output:")
     top15.foreach(println)
-    /** end sanity checks */
+    end sanity checks */
 
     top10
   }
