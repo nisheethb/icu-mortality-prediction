@@ -4,29 +4,7 @@
 
 package edu.gatech.cse8803.model
 
-case class LabResult(patientID: String, date: Long, labName: String, value: String)
-
-case class Diagnostic(patientID: String, date: Long, icd9code: String, sequence: Int)
-
-case class Medication(patientID: String, date: Long, medicine: String)
-
-abstract class VertexProperty
-
-case class PatientProperty(patientID: String, sex: String, dob: String, dod: String) extends VertexProperty
-
-case class LabResultProperty(testName: String) extends VertexProperty
-
-case class DiagnosticProperty(icd9code: String) extends VertexProperty
-
-case class MedicationProperty(medicine: String) extends VertexProperty
-
-abstract class EdgeProperty
-
-case class SampleEdgeProperty(name: String = "Sample") extends EdgeProperty
-
-case class PatientLabEdgeProperty(labResult: LabResult) extends EdgeProperty
-
-case class PatientDiagnosticEdgeProperty(diagnostic: Diagnostic) extends EdgeProperty
-
-case class PatientMedicationEdgeProperty(medication: Medication) extends EdgeProperty
+case class PatientEvent(subject_id:String, gender:String, hadm_id:String,
+                        icustay_total_num:String, age:String, icustay_expire_flg:String,
+                        sapsi_first:String, sofa_first:String)
 

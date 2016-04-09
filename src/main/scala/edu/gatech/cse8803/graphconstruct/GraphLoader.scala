@@ -166,7 +166,7 @@ object GraphLoader {
     // Making Graph
     val graph: Graph[VertexProperty, EdgeProperty] = Graph(allVertices, allEdges)
 
-    /** Begin of sanity checks
+    /** Begin of sanity checks */
     val numEdges = graph.edges.count()
     val numVertices = graph.vertices.count()
     val numPatientVertices = graph.vertices.filter(_._2.isInstanceOf[PatientProperty]).count()
@@ -176,7 +176,7 @@ object GraphLoader {
 
     println("Vertices: Total, Patient, Diag, Med, Lab", numVertices, numPatientVertices, numDiagVertices, numMedVertices, numLabVertices)
     println("Edges count: ", numEdges)
-     End of sanity checks */
+   /**  End of sanity checks */
 
     graph
   }

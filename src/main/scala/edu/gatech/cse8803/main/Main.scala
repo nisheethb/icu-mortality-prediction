@@ -29,57 +29,30 @@ object Main {
     val sqlContext = new SQLContext(sc)
 
     /** initialize loading of data */
-    val (patient, medication, labResult, diagnostic) = loadRddRawData(sqlContext)
+    val patientDetails = loadRddRawData(sqlContext)
+    val avgAge:Double = patientDetails.map(l => l.age.toDouble).mean()
+    println("avg age ", avgAge)
 
-    val patientGraph = GraphLoader.load( patient, labResult, medication, diagnostic )
-
-    println(Jaccard.jaccardSimilarityOneVsAll(patientGraph, 9))
-    println(RandomWalk.randomWalkOneVsAll(patientGraph, 9))
-
-    val similarities = Jaccard.jaccardSimilarityAllPatients(patientGraph)
-
-    val PICLabels = PowerIterationClustering.runPIC(similarities)
-    
     sc.stop()
   }
 
-  def loadRddRawData(sqlContext: SQLContext): (RDD[PatientProperty], RDD[Medication], RDD[LabResult], RDD[Diagnostic]) = {
+  def loadRddRawData(sqlContext: SQLContext): (RDD[PatientEvent]) = {
 
     val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssX")
 
-    List("data/PATIENT.csv", "data/LAB.csv", "data/DIAGNOSTIC.csv", "data/MEDICATION.csv")
+    List("data/icustay_detail.csv")
       .foreach(CSVUtils.loadCSVAsTable(sqlContext, _))
 
-    val patient = sqlContext.sql( // fix this
+    val patientDetails = sqlContext.sql( // fix this
       """
-        |SELECT subject_id, sex, dob, dod
-        |FROM PATIENT
+        |SELECT subject_id, gender, hadm_id, icustay_total_num,
+        |icustay_admit_age, icustay_expire_flg, sapsi_first, sofa_first
+        |FROM icustay_detail
       """.stripMargin)
-      .map(r => PatientProperty(r(0).toString, r(1).toString, r(2).toString, r(3).toString ))
+      .map(r => PatientEvent(r(0).toString, r(1).toString, r(2).toString, r(3).toString,
+        r(4).toString, r(5).toString, r(6).toString, r(7).toString))
 
-    val labResult = sqlContext.sql(
-      """
-        |SELECT subject_id, date, lab_name, value
-        |FROM LAB
-        |WHERE value IS NOT NULL and value <> ''
-      """.stripMargin)
-      .map(r => LabResult(r(0).toString, r(1).toString.toLong, r(2).toString, r(3).toString ))
-
-    val diagnostic = sqlContext.sql(
-      """
-        |SELECT subject_id, date, code, sequence
-        |FROM DIAGNOSTIC
-      """.stripMargin)
-      .map(r => Diagnostic(r(0).toString, r(1).toString.toLong, r(2).toString, r(3).toString.toInt ))
-
-    val medication = sqlContext.sql(
-      """
-        |SELECT subject_id, date, med_name
-        |FROM MEDICATION
-      """.stripMargin)
-      .map(r => Medication(r(0).toString, r(1).toString.toLong, r(2).toString))
-
-    (patient, medication, labResult, diagnostic)
+    (patientDetails)
 
   }
 
