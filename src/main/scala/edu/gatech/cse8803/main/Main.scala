@@ -29,9 +29,10 @@ object Main {
     val sqlContext = new SQLContext(sc)
 
     /** initialize loading of data */
-    val patientDetails = loadRddRawData(sqlContext)
+    val (patientDetails) = loadRddRawData(sqlContext)
     val avgAge:Double = patientDetails.map(l => l.age.toDouble).mean()
     println("avg age ", avgAge)
+
 
     sc.stop()
   }
@@ -40,7 +41,7 @@ object Main {
 
     val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssX")
 
-    List("data/icustay_detail.csv")
+    List("data/icustay_detail.csv", "data/noteevents.csv")
       .foreach(CSVUtils.loadCSVAsTable(sqlContext, _))
 
     val patientDetails = sqlContext.sql( // fix this
@@ -51,6 +52,7 @@ object Main {
       """.stripMargin)
       .map(r => PatientEvent(r(0).toString, r(1).toString, r(2).toString, r(3).toString,
         r(4).toString, r(5).toString, r(6).toString, r(7).toString))
+
 
     (patientDetails)
 
