@@ -1,5 +1,5 @@
 /**
- * @author Hang Su <hangsu@gatech.edu>.
+ * @author Nisheeth Bandaru
  */
 
 package edu.gatech.cse8803.main
@@ -24,18 +24,20 @@ object Main {
     val sqlContext = new SQLContext(sc)
 
     /** initialize loading of data */
-    val (patientDetails) = loadRddRawData(sqlContext)
+    val (patientDetails, icuDetails) = loadRddRawData(sqlContext)
     val avgAge:Double = patientDetails.map(l => l.age.toDouble).mean()
     println("avg age ", avgAge)
 
+    val icuCount = icuDetails.count()
+    println("icu count", icuCount)
     sc.stop()
   }
 
-  def loadRddRawData(sqlContext: SQLContext): (RDD[PatientEvent]) = {
+  def loadRddRawData(sqlContext: SQLContext): (RDD[PatientEvent], RDD[IcuEvent]) = {
 
     val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssX")
 
-    List("data/icustay_detail.csv", "data/noteevents.csv")
+    List("data/icustay_detail.csv", "data/notesprocess.csv")
       .foreach(CSVUtils.loadCSVAsTable(sqlContext, _))
 
     val patientDetails = sqlContext.sql( // fix this
@@ -46,8 +48,15 @@ object Main {
       """.stripMargin)
       .map(r => PatientEvent(r(0).toString, r(1).toString, r(2).toString, r(3).toString,
         r(4).toString, r(5).toString, r(6).toString, r(7).toString))
-    
-    (patientDetails)
+
+    val icuDetails = sqlContext.sql(
+      """
+        |SELECT subject_id, charttime, text
+        |FROM notesprocess
+      """.stripMargin
+    ).map(r => IcuEvent(r(0).toString, r(1).toString, r(2).toString))
+
+    (patientDetails, icuDetails)
 
   }
 
@@ -59,5 +68,5 @@ object Main {
 
   def createContext(appName: String): SparkContext = createContext(appName, "local")
 
-  def createContext: SparkContext = createContext("CSE 8803 Homework Three Application", "local")
+  def createContext: SparkContext = createContext("CSE 8803 Project App", "local")
 }
