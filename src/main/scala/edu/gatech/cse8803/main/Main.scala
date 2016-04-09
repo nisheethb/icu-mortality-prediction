@@ -7,15 +7,10 @@ package edu.gatech.cse8803.main
 import java.text.SimpleDateFormat
 
 import edu.gatech.cse8803.ioutils.CSVUtils
-import edu.gatech.cse8803.jaccard.Jaccard
 import edu.gatech.cse8803.model._
-import edu.gatech.cse8803.randomwalk.RandomWalk
-import edu.gatech.cse8803.clustering.PowerIterationClustering
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.{SparkConf, SparkContext}
-import edu.gatech.cse8803.graphconstruct.GraphLoader
-
 
 object Main {
   def main(args: Array[String]) {
@@ -32,7 +27,6 @@ object Main {
     val (patientDetails) = loadRddRawData(sqlContext)
     val avgAge:Double = patientDetails.map(l => l.age.toDouble).mean()
     println("avg age ", avgAge)
-
 
     sc.stop()
   }
@@ -52,8 +46,7 @@ object Main {
       """.stripMargin)
       .map(r => PatientEvent(r(0).toString, r(1).toString, r(2).toString, r(3).toString,
         r(4).toString, r(5).toString, r(6).toString, r(7).toString))
-
-
+    
     (patientDetails)
 
   }
