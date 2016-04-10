@@ -11,6 +11,9 @@ import edu.gatech.cse8803.features.FeatureConstruction
 import edu.gatech.cse8803.model._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
+import org.apache.spark.mllib.classification.{SVMModel, SVMWithSGD}
+import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
+import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.{SparkConf, SparkContext}
 
 object Main {
@@ -27,6 +30,31 @@ object Main {
     /** initialize loading of data */
     val (patientDetails, icuDetails) = loadRddRawData(sqlContext)
     val normedFeatures = FeatureConstruction.normalizeFeatures(patientDetails)
+    val filteredFeatures = normedFeatures.filter(f => f.icustay_seq_num == 1)
+
+    val SDLabeledPoints = FeatureConstruction.constructLPforStructured(filteredFeatures)
+
+    val splits = SDLabeledPoints.randomSplit(Array(0.7, 0.3), seed=8803L)
+    val train = splits(0).cache()
+    val test = splits(1).cache()
+
+    val numIterations = 100
+    val model = SVMWithSGD.train(train, numIterations)
+
+    model.clearThreshold()
+
+    // Compute raw scores on the test set.
+    val scoreAndLabels = test.map { point =>
+      val score = model.predict(point.features)
+      (score, point.label)
+    }
+
+    // Get evaluation metrics.
+    val metrics = new BinaryClassificationMetrics(scoreAndLabels)
+    val auROC = metrics.areaUnderROC()
+
+    println("Area under ROC = " + auROC)
+
 
     val icuCount = icuDetails.count()
     println("icu count", icuCount)

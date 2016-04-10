@@ -53,7 +53,7 @@ object FeatureConstruction {
 
         val sapsi_f: Double = {
           if (f.sapsi_first.isEmpty)
-            13.39
+            -1.0
           else
             f.sapsi_first.toDouble
         }
@@ -61,8 +61,8 @@ object FeatureConstruction {
         NormalizedPatientEvent(subid, sex, hadmid, total_stay, stay_seqNum, sub_age, sapsi_f, expiredInICU)
     }
 
-    // Filter bad data
-    val filteredData = numericFeatures.filter(f => f.age >= 0)
+    // Filter bad/unnecessary data
+    val filteredData = numericFeatures.filter(f => f.age >= 18).filter(f => f.sapsi_first >= 0)
 
     // Normalize everything to the same scale
     // Get avgs, min, max
@@ -84,6 +84,18 @@ object FeatureConstruction {
     }
 
     normalizedData
+  }
+
+  def constructLPforStructured(normedPatientEvents:RDD[NormalizedPatientEvent]): RDD[LabeledPoint] = {
+    val labeled = normedPatientEvents.map{
+      f =>
+        if (f.icustay_expire_flg == 0.0)
+          LabeledPoint(0, Vectors.dense(f.age, f.gender.toDouble, f.sapsi_first))
+        else
+          LabeledPoint(1, Vectors.dense(f.age, f.gender.toDouble, f.sapsi_first))
+    }
+
+    labeled
   }
 
 }
