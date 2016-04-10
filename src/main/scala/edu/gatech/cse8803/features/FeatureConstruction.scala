@@ -9,6 +9,9 @@ import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
+import org.apache.spark.mllib.feature.HashingTF
+import org.apache.spark.mllib.feature.IDF
+import org.apache.spark.mllib.linalg.Vector
 import org.apache.spark.SparkContext._
 import java.util.Date
 
@@ -53,7 +56,7 @@ object FeatureConstruction {
 
         val sapsi_f: Double = {
           if (f.sapsi_first.isEmpty)
-            -1.0
+            -1
           else
             f.sapsi_first.toDouble
         }
@@ -96,6 +99,22 @@ object FeatureConstruction {
     }
 
     labeled
+  }
+
+  def applytfidf(icuNotes:RDD[IcuEvent]): RDD[Vector] = {
+
+    val sc = icuNotes.sparkContext
+    // Load documents (one per line).
+    val documents: RDD[Seq[String]] = sc.textFile("data/sampledata.txt").map(_.split(" ").toSeq)
+
+    val hashingTF = new HashingTF()
+    val tf: RDD[Vector] = hashingTF.transform(documents)
+    tf.cache()
+    val idf = new IDF().fit(tf)
+    val tfidf: RDD[Vector] = idf.transform(tf)
+
+    tfidf
+
   }
 
 }

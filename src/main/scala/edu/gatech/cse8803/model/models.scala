@@ -14,3 +14,4 @@ case class NormalizedPatientEvent(subject_id: Int, gender: Int, hadm_id:Int,
 
 case class IcuEvent(subject_id:String, charttime:String, text: String)
 
+

@@ -55,9 +55,13 @@ object Main {
 
     println("Area under ROC = " + auROC)
 
+    // Use the structured features
+    // Apply tf-idf
+    val vectfidf = FeatureConstruction.applytfidf(icuDetails)
 
-    val icuCount = icuDetails.count()
-    println("icu count", icuCount)
+    vectfidf.foreach(println)
+
+
     sc.stop()
   }
 
