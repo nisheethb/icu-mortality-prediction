@@ -7,6 +7,7 @@ package edu.gatech.cse8803.main
 import java.text.SimpleDateFormat
 
 import edu.gatech.cse8803.ioutils.CSVUtils
+import edu.gatech.cse8803.features.FeatureConstruction
 import edu.gatech.cse8803.model._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
@@ -25,8 +26,7 @@ object Main {
 
     /** initialize loading of data */
     val (patientDetails, icuDetails) = loadRddRawData(sqlContext)
-    val avgAge:Double = patientDetails.map(l => l.age.toDouble).mean()
-    println("avg age ", avgAge)
+    val normedFeatures = FeatureConstruction.normalizeFeatures(patientDetails)
 
     val icuCount = icuDetails.count()
     println("icu count", icuCount)
@@ -35,19 +35,19 @@ object Main {
 
   def loadRddRawData(sqlContext: SQLContext): (RDD[PatientEvent], RDD[IcuEvent]) = {
 
-    val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssX")
+    val dateFormat = new SimpleDateFormat("dd-MM-yyyy'  'hh:mm:ss a")
 
     List("data/icustay_detail.csv", "data/notesprocess.csv")
       .foreach(CSVUtils.loadCSVAsTable(sqlContext, _))
 
     val patientDetails = sqlContext.sql( // fix this
       """
-        |SELECT subject_id, gender, hadm_id, icustay_total_num,
+        |SELECT subject_id, gender, hadm_id, icustay_total_num, subject_icustay_seq,
         |icustay_admit_age, icustay_expire_flg, sapsi_first, sofa_first
         |FROM icustay_detail
       """.stripMargin)
       .map(r => PatientEvent(r(0).toString, r(1).toString, r(2).toString, r(3).toString,
-        r(4).toString, r(5).toString, r(6).toString, r(7).toString))
+        r(4).toString, r(5).toString, r(6).toString, r(7).toString, r(8).toString))
 
     val icuDetails = sqlContext.sql(
       """
