@@ -10,8 +10,8 @@ resolvers ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.apache.spark"  % "spark-core_2.10"              % "1.3.1" % "provided",
-  "org.apache.spark"  % "spark-mllib_2.10"             % "1.3.1",
+  "org.apache.spark"  % "spark-core_2.10"              % "1.6.1" % "provided",
+  "org.apache.spark"  % "spark-mllib_2.10"             % "1.6.1",
   "com.databricks"    % "spark-csv_2.10"               % "1.3.0"
 )
 
