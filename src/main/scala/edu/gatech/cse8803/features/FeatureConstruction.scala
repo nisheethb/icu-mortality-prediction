@@ -106,8 +106,18 @@ object FeatureConstruction {
   def applytfidf(icuNotes:RDD[IcuEvent]): List[Int] = {
 
     val sc = icuNotes.sparkContext
-    val notes = icuNotes.map( f => f.text)
+    val stopwords  = Set("a", "an", "the")
+    val patientnotes = icuNotes.map( f => (f.subject_id.toInt, f.text))
+    val tokenizednotes: RDD[(Int, Array[String])] = patientnotes.map{
+      f =>
+        val notext:String = f._2
+        val tokenizedtext = notext.toLowerCase.split("\\s").filter(_.length > 3).filter(f => !stopwords.contains(f))
+        (f._1, tokenizedtext)
+    }
 
+    // TO BE CONTINUED
+
+    val notes = icuNotes.map(f => f.text)
     val corpus: RDD[String] = notes
     // Split each document into a sequence of terms (words)
     val tokenized: RDD[Seq[String]] =
@@ -118,6 +128,13 @@ object FeatureConstruction {
     val termCounts: Array[(String, Long)] =
       tokenized.flatMap(_.map(_ -> 1L)).reduceByKey(_ + _).collect().sortBy(-_._2)
 
+    val hashingTF = new HashingTF()
+    val tf: RDD[Vector] = hashingTF.transform(tokenized)
+    tf.take(5).foreach(println)
+    termCounts.take(5).foreach(println)
+    val termVector = termCounts.map(f => f._2)
+
+
     //   vocabArray: Chosen vocab (removing common terms)
     val numStopwords = 20
     val vocabArray: Array[String] =
@@ -126,6 +143,7 @@ object FeatureConstruction {
     val vocab: Map[String, Int] = vocabArray.zipWithIndex.toMap
 
     val vocabsize = vocab.values.size
+    println("vocabsize", vocabsize)
 
     // Convert documents into term count vectors
     val documents: RDD[(Long, Vector)] =
@@ -146,8 +164,6 @@ object FeatureConstruction {
 
     val ldaModel = lda.run(documents)
 
-    ldaModel.save(sc, "myLDAModel")
-
     val avgLogLikelihood = ldaModel.asInstanceOf[DistributedLDAModel].logLikelihood / documents.count()
 
     val distributedLDAModel = ldaModel.asInstanceOf[DistributedLDAModel]
@@ -157,10 +173,11 @@ object FeatureConstruction {
     topicIndices.foreach { case (terms, termWeights) =>
       println("TOPIC:")
       terms.zip(termWeights).foreach { case (term, weight) =>
-        println(s"${vocabArray(term.toInt)}\t$weight")
+        print(s"${vocabArray(term.toInt)}\t")
       }
       println()
     }
+
 
     val docinTocs = distributedLDAModel.toLocal.topicDistributions(documents)
 

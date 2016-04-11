@@ -39,6 +39,7 @@ object Main {
     val test = splits(1).cache()
 
     val numIterations = 100
+
     val model = SVMWithSGD.train(train, numIterations)
 
     model.clearThreshold()
