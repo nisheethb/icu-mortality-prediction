@@ -117,6 +117,7 @@ object FeatureConstruction {
     //   termCounts: Sorted list of (term, termCount) pairs
     val termCounts: Array[(String, Long)] =
       tokenized.flatMap(_.map(_ -> 1L)).reduceByKey(_ + _).collect().sortBy(-_._2)
+
     //   vocabArray: Chosen vocab (removing common terms)
     val numStopwords = 20
     val vocabArray: Array[String] =
@@ -125,7 +126,6 @@ object FeatureConstruction {
     val vocab: Map[String, Int] = vocabArray.zipWithIndex.toMap
 
     val vocabsize = vocab.values.size
-    println("vocab size ", vocabsize)
 
     // Convert documents into term count vectors
     val documents: RDD[(Long, Vector)] =
@@ -141,11 +141,16 @@ object FeatureConstruction {
       }
 
     // Set LDA parameters
-    val numTopics = 10
-    val lda = new LDA().setK(numTopics).setMaxIterations(10)
+    val numTopics = 50
+    val lda = new LDA().setK(numTopics).setMaxIterations(30)
 
     val ldaModel = lda.run(documents)
+
+    ldaModel.save(sc, "myLDAModel")
+
     val avgLogLikelihood = ldaModel.asInstanceOf[DistributedLDAModel].logLikelihood / documents.count()
+
+    val distributedLDAModel = ldaModel.asInstanceOf[DistributedLDAModel]
 
     // Print topics, showing top-weighted 10 terms for each topic.
     val topicIndices = ldaModel.describeTopics(maxTermsPerTopic = 10)
@@ -156,6 +161,8 @@ object FeatureConstruction {
       }
       println()
     }
+
+    val docinTocs = distributedLDAModel.toLocal.topicDistributions(documents)
 
     List(1,2,3)
   }
