@@ -25,7 +25,10 @@ object FeatureConstruction {
   type FeatureTuple = ((String, String), Double)
 
   def normalizeFeatures(icuEvents: RDD[PatientEvent]): RDD[NormalizedPatientEvent] = {
+    /** Clean data and normalize all the features to be in the same range
+      * Parse numeric features*/
 
+      // encode gender as 0 or 1; need to revisit this scheme
     val numericFeatures = icuEvents.map{
       f =>
         val subid = f.subject_id.toInt
@@ -43,12 +46,15 @@ object FeatureConstruction {
         }
         val total_stay = f.icustay_total_num.toInt
         val stay_seqNum = f.subject_icustay_seq.toInt
+        // mark invalid ages
         val sub_age: Double = {
           if (f.age.toDouble < 0 || f.age.toDouble > 120)
             -1.0
           else
             f.age.toDouble
         }
+
+        // encode decision label
         val expiredInICU: Double = {
           if (f.icustay_expire_flg == "Y")
             1
@@ -63,6 +69,7 @@ object FeatureConstruction {
             f.sapsi_first.toDouble
         }
 
+        // return clean and normalized data
         NormalizedPatientEvent(subid, sex, hadmid, total_stay, stay_seqNum, sub_age, sapsi_f, expiredInICU)
     }
 
@@ -92,6 +99,8 @@ object FeatureConstruction {
   }
 
   def constructLPforStructured(normedPatientEvents:RDD[NormalizedPatientEvent]): RDD[LabeledPoint] = {
+    /** Construct LabeledPoints for passing in to MLlib algos
+      * returns RDD[LabeledPoint] = RDD[(label, (features))]*/
     val labeled = normedPatientEvents.map{
       f =>
         if (f.icustay_expire_flg == 0.0)
@@ -104,7 +113,7 @@ object FeatureConstruction {
   }
 
   def applytfidf(icuNotes:RDD[IcuEvent]): List[Int] = {
-
+    /** Appy tf-idf to identify the 500 most informative words in each patient's notes */
     val sc = icuNotes.sparkContext
     val stopwords  = Set("a", "an", "the")
     val patientnotes = icuNotes.map( f => (f.subject_id.toInt, f.text))
@@ -115,7 +124,7 @@ object FeatureConstruction {
         (f._1, tokenizedtext)
     }
 
-    // TO BE CONTINUED
+    val patandnotes = tokenizednotes.reduceByKey(_ ++ _)
 
     val notes = icuNotes.map(f => f.text)
     val corpus: RDD[String] = notes

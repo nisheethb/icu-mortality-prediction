@@ -68,6 +68,7 @@ object Main {
 
   def loadRddRawData(sqlContext: SQLContext): (RDD[PatientEvent], RDD[IcuEvent]) = {
 
+    /** Load in the data */
     val dateFormat = new SimpleDateFormat("dd-MM-yyyy'  'hh:mm:ss a")
 
     List("data/icustay_detail.csv", "data/notesprocess.csv")
