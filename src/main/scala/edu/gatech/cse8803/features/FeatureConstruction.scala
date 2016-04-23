@@ -5,6 +5,8 @@ package edu.gatech.cse8803.features
   * */
 
 import edu.gatech.cse8803.model._
+import org.apache.spark.ml.feature.CountVectorizer
+import org.apache.spark.sql.types.{StructType, StructField, StringType}
 import org.apache.spark.{SparkConf, SparkContext}
 import scala.collection.mutable
 import org.apache.spark.mllib.clustering.{DistributedLDAModel, LDA}
@@ -15,6 +17,7 @@ import org.apache.spark.sql.SQLContext
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext._
+import org.apache.spark.sql._
 import java.util.Date
 
 object FeatureConstruction {
@@ -160,16 +163,42 @@ object FeatureConstruction {
       "youngest", "your", "yours", "z", "name", "note")
 
     val patientnotes = icuNotes.map( f => (f.subject_id.toInt, f.text))
+
+    // get the patient and  each of their notes tokenized after some processing
     val tokenizednotes: RDD[(Int, Array[String])] = patientnotes.map{
       f =>
         val notext:String = f._2
         val tokenizedtext = notext.toLowerCase.split("\\s").filter(_.length > 3).filter(f => !stopwords.contains(f))
         (f._1, tokenizedtext)
-
     }
 
+    // collapse all the notes for a patient into one
     val patandnotes = tokenizednotes.reduceByKey(_ ++ _)
 
+    val hashingTF = new HashingTF()
+
+    val hashednotes = patandnotes.map{
+      f =>
+        (f._1, hashingTF.transform(f._2))
+    }
+
+    val justnotes = hashednotes.map(_._2)
+    justnotes.cache()
+    val idf = new IDF().fit(justnotes)
+    val tfidf = idf.transform(justnotes)
+
+    val Patienttop500words = tfidf.map(x => x.toSparse).map{x => x.indices.zip(x.values)
+      .sortBy(-_._2)
+      .take(500)
+      .map(_._1)
+    }
+
+    val vocabulary = Patienttop500words.collect.flatten.toSet
+
+    val sizeVoc = vocabulary.size
+    println("vocabulary size", sizeVoc)
+    //val something = Patienttop500words.map( f => f.length)
+    //something.collect.foreach(println)
 
     val notes = icuNotes.map(f => f.text)
     val corpus: RDD[String] = notes
@@ -182,9 +211,9 @@ object FeatureConstruction {
     val termCounts: Array[(String, Long)] =
       tokenized.flatMap(_.map(_ -> 1L)).reduceByKey(_ + _).collect().sortBy(-_._2)
 
-    val hashingTF = new HashingTF()
-    val tf: RDD[Vector] = hashingTF.transform(tokenized)
-    tf.take(5).foreach(println)
+    val hashingTF1 = new HashingTF()
+    val tf: RDD[Vector] = hashingTF1.transform(tokenized)
+    //tf.take(5).foreach(println)
     val termVector = termCounts.map(f => f._2)
 
 
