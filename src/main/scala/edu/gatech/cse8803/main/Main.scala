@@ -9,8 +9,10 @@ import java.text.SimpleDateFormat
 import edu.gatech.cse8803.ioutils.CSVUtils
 import edu.gatech.cse8803.features.FeatureConstruction
 import edu.gatech.cse8803.model._
+import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.mllib.linalg.Vector
 import org.apache.spark.mllib.classification.{SVMModel, SVMWithSGD}
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.mllib.util.MLUtils
@@ -27,39 +29,76 @@ object Main {
     val sc = createContext
     val sqlContext = new SQLContext(sc)
 
+    import sqlContext.implicits._
+
     /** initialize loading of data */
-    val (patientDetails, comorbidityDetails, icuDetails) = loadRddRawData(sqlContext)
-    val normedFeatures = FeatureConstruction.normalizeFeatures(patientDetails)
-    val filteredFeatures = normedFeatures.filter(f => f.icustay_seq_num == 1)
+    val (patientDetails, icuDetails) = loadRddRawData(sqlContext)
+    val normedFeatures = FeatureConstruction.normalizeFeatures(patientDetails).filter(f => f.icustay_seq_num == 1)
 
-    val SDLabeledPoints = FeatureConstruction.constructLPforStructured(filteredFeatures)
+    val AdmBase_LP = FeatureConstruction.construct_LP_for_AdmBaseline(normedFeatures)
+    val PatientNoteTopics = FeatureConstruction.vectorizeNotes(icuDetails).toDF()
+    PatientNoteTopics.registerTempTable("patientNotes")
 
-    val splits = SDLabeledPoints.randomSplit(Array(0.7, 0.3), seed=8803L)
-    val train = splits(0).cache()
-    val test = splits(1).cache()
+    val patientDs = normedFeatures.toDF()
+    patientDs.registerTempTable("patient_d")
+
+    val RTopics = sqlContext.sql(
+      """
+        |SELECT p.subject_id, d.icustay_expire_flg, p.document
+        |FROM patientNotes p
+        |JOIN patient_d d
+        |ON p.subject_id = d.subject_id
+      """.stripMargin)
+
+    val RTopics_LP = RTopics.rdd.map(row => LabeledPoint(
+      row.getAs[Double](1),
+      row.getAs[Vector]{2}
+    ))
+
+    // Do R Topics
+    val splits_ABL = AdmBase_LP.randomSplit(Array(0.7, 0.3), seed=8803L)
+    val train_ABL = splits_ABL(0).cache()
+    val test_ABL = splits_ABL(1).cache()
 
     val numIterations = 100
 
-    val model = SVMWithSGD.train(train, numIterations)
+    val model_ABL = SVMWithSGD.train(train_ABL, numIterations)
 
-    model.clearThreshold()
+    model_ABL.clearThreshold()
 
     // Compute raw scores on the test set.
-    val scoreAndLabels = test.map { point =>
-      val score = model.predict(point.features)
+    val scoreAndLabels_ABL = test_ABL.map { point =>
+      val score = model_ABL.predict(point.features)
       (score, point.label)
     }
 
     // Get evaluation metrics.
-    val metrics = new BinaryClassificationMetrics(scoreAndLabels)
-    val auROC = metrics.areaUnderROC()
+    val metrics_ABL = new BinaryClassificationMetrics(scoreAndLabels_ABL)
+    val auROC_ABL = metrics_ABL.areaUnderROC()
 
-    println("Area under ROC = " + auROC)
+    println("Area under ROC = " + auROC_ABL)
 
-    // Use the structured features
-    // Apply tf-idf
-    val vectfidf = FeatureConstruction.vectorizeNotes(icuDetails)
 
+    // Do R Topics----------------------------------------------------
+    val splits_RT = RTopics_LP.randomSplit(Array(0.7, 0.3), seed=8803L)
+    val train_RT = splits_RT(0).cache()
+    val test_RT = splits_RT(1).cache()
+
+    val model_RT = SVMWithSGD.train(train_RT, numIterations)
+
+    model_RT.clearThreshold()
+
+    // Compute raw scores on the test set.
+    val scoreAndLabels_RT = test_RT.map { point =>
+      val score = model_RT.predict(point.features)
+      (score, point.label)
+    }
+
+    // Get evaluation metrics.
+    val metrics_RT = new BinaryClassificationMetrics(scoreAndLabels_RT)
+    val auROC_RT = metrics_RT.areaUnderROC()
+
+    println("Area under ROC for R Topics = " + auROC_RT)
 
     sc.stop()
   }
@@ -69,7 +108,7 @@ object Main {
     /** Load in the data */
     val dateFormat = new SimpleDateFormat("dd-MM-yyyy'  'hh:mm:ss a")
 
-    List("data/icustay_detail.csv", "data/notesprocess.csv")
+    List("data/icustay_detail.csv", "data/comorbidity_scores.csv", "data/notesprocess.csv")
       .foreach(CSVUtils.loadCSVAsTable(sqlContext, _))
 
     val patientDetails = sqlContext.sql( // fix this
@@ -81,21 +120,23 @@ object Main {
       .map(r => PatientEvent(r(0).toString, r(1).toString, r(2).toString, r(3).toString,
         r(4).toString, r(5).toString, r(6).toString, r(7).toString, r(8).toString, r(9).toString))
 
-    val comorbidityDetails = sqlContext.sql(
-      """
-        |SELECT congestive_heart_failure, cardiac_arrhythmias, valvular_disease, pulmonary_circulation,
-        |	peripheral_vascular, hypertension, paralysis, other_neurological, chronic_pulmonary,
-        | diabetes_uncomplicated, diabetes_complicated,	hypothyroidism, renal_failure, liver_disease,	peptic_ulcer,
-        | aids,	lymphoma,	metastatic_cancer, solid_tumor, rheumatoid_arthritis, coagulopathy, obesity, weight_loss,
-        | fluid_electrolyte, blood_loss_anemia, deficiency_anemias, alcohol_abuse, drug_abuse, psychoses, depression
-        |FROM comorbidity_scores
-      """.stripMargin)
-        .map(r => MorbidityEvent(r(0).toString, r(1).toString, r(2).toString, r(3).toString, r(4).toString,
-          r(5).toString, r(6).toString, r(7).toString, r(8).toString, r(9).toString, r(10).toString,
-          r(11).toString, r(12).toString, r(13).toString, r(14).toString, r(15).toString, r(16).toString,
-          r(17).toString, r(18).toString, r(19).toString, r(20).toString, r(21).toString, r(22).toString,
-          r(23).toString, r(24).toString, r(25).toString, r(26).toString, r(27).toString, r(28).toString,
-          r(29).toString, r(30).toString))
+    /**
+    *val comorbidityDetails = sqlContext.sql(
+      *"""
+        *|SELECT congestive_heart_failure, cardiac_arrhythmias, valvular_disease, pulmonary_circulation,
+        *|	peripheral_vascular, hypertension, paralysis, other_neurological, chronic_pulmonary,
+        *| diabetes_uncomplicated, diabetes_complicated,	hypothyroidism, renal_failure, liver_disease,	peptic_ulcer,
+        *| aids,	lymphoma,	metastatic_cancer, solid_tumor, rheumatoid_arthritis, coagulopathy, obesity, weight_loss,
+        *| fluid_electrolyte, blood_loss_anemia, deficiency_anemias, alcohol_abuse, drug_abuse, psychoses, depression
+      *|FROM comorbidity_scores
+      *""".stripMargin)
+        *.map(r => MorbidityEvent(r(0).toString, r(1).toString, r(2).toString, r(3).toString, r(4).toString,
+          *r(5).toString, r(6).toString, r(7).toString, r(8).toString, r(9).toString, r(10).toString,
+          *r(11).toString, r(12).toString, r(13).toString, r(14).toString, r(15).toString, r(16).toString,
+          *r(17).toString, r(18).toString, r(19).toString, r(20).toString, r(21).toString, r(22).toString,
+          *r(23).toString, r(24).toString, r(25).toString, r(26).toString, r(27).toString, r(28).toString,
+          *r(29).toString, r(30).toString))
+      */
 
     val icuDetails = sqlContext.sql(
       """
@@ -104,7 +145,7 @@ object Main {
       """.stripMargin
     ).map(r => IcuEvent(r(0).toString, r(1).toString))
 
-    (patientDetails, comorbidityDetails, icuDetails)
+    (patientDetails,  icuDetails)
 
   }
 

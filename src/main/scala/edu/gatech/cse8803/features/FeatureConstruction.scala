@@ -72,12 +72,28 @@ object FeatureConstruction {
             f.sapsi_first.toDouble
         }
 
+        val saps_min: Double = {
+          if (f.sapsi_min.isEmpty)
+            -1
+          else
+            f.sapsi_min.toDouble
+        }
+
+        val saps_max: Double = {
+          if (f.sapsi_max.isEmpty)
+            -1
+          else
+            f.sapsi_max.toDouble
+        }
+
         // return clean and normalized data
-        NormalizedPatientEvent(subid, sex, hadmid, total_stay, stay_seqNum, sub_age, sapsi_f, expiredInICU)
+        NormalizedPatientEvent(subid, sex, hadmid, total_stay, stay_seqNum, sub_age,
+          sapsi_f, saps_min, saps_max, expiredInICU)
     }
 
-    // Filter bad/unnecessary data
-    val filteredData = numericFeatures.filter(f => f.age >= 18).filter(f => f.sapsi_first >= 0)
+    // Filter out bad/unnecessary data
+    val filteredData = numericFeatures.filter(f => f.age >= 18).filter(f => (f.sapsi_first >= 0) && (f.sapsi_min >= 0)
+     && (f.sapsi_max >= 0))
 
     // Normalize everything to the same scale
     // Get avgs, min, max
@@ -85,23 +101,34 @@ object FeatureConstruction {
     val maxAge = filteredData.map(f => f.age).max()
     val meanAge = filteredData.map(f => f.age).mean()
 
-    val minSAPS = filteredData.map(f => f.sapsi_first).min().toDouble
-    val maxSAPS = filteredData.map(f => f.sapsi_first).max().toDouble
-    val meanSAPS = filteredData.map(f => f.sapsi_first).mean().toDouble
+    val minSAPS_first = filteredData.map(f => f.sapsi_first).min()
+    val maxSAPS_first = filteredData.map(f => f.sapsi_first).max()
+    val meanSAPS_first = filteredData.map(f => f.sapsi_first).mean()
+
+    val minSAPS_min = filteredData.map(f => f.sapsi_min).min()
+    val maxSAPS_min = filteredData.map(f => f.sapsi_min).max()
+    val meanSAPS_min = filteredData.map(f => f.sapsi_min).mean()
+
+    val minSAPS_max = filteredData.map(f => f.sapsi_max).min()
+    val maxSAPS_max = filteredData.map(f => f.sapsi_max).max()
+    val meanSAPS_max = filteredData.map(f => f.sapsi_max).mean()
 
     val normalizedData = filteredData.map{
       f =>
         val normedAge = (f.age - meanAge)/(maxAge - minAge)
-        val normedSAPS = (f.sapsi_first - meanSAPS)/(maxSAPS - minSAPS)
+        val normedSAPS_first = (f.sapsi_first - meanSAPS_first)/(maxSAPS_first - minSAPS_first)
+        val normedSAPS_min = (f.sapsi_min - meanSAPS_min)/(maxSAPS_min - minSAPS_min)
+        val normedSAPS_max = (f.sapsi_max - meanSAPS_max)/(maxSAPS_max - minSAPS_max)
 
         NormalizedPatientEvent(f.subject_id, f.gender, f.hadm_id,
-          f.icustay_total_num, f.icustay_seq_num, normedAge, normedSAPS, f.icustay_expire_flg)
+          f.icustay_total_num, f.icustay_seq_num, normedAge, normedSAPS_first,
+          normedSAPS_min, normedSAPS_max, f.icustay_expire_flg)
     }
 
     normalizedData
   }
 
-  def constructLPforStructured(normedPatientEvents:RDD[NormalizedPatientEvent]): RDD[LabeledPoint] = {
+  def construct_LP_for_AdmBaseline(normedPatientEvents:RDD[NormalizedPatientEvent]): RDD[LabeledPoint] = {
     /** Construct LabeledPoints for passing in to MLlib algos
       * returns RDD[LabeledPoint] = RDD[(label, (features))]*/
     val labeled = normedPatientEvents.map{
@@ -115,12 +142,14 @@ object FeatureConstruction {
     labeled
   }
 
-  def vectorizeNotes(icuNotes:RDD[IcuEvent]): List[Int] = {
+
+
+  def vectorizeNotes(icuNotes:RDD[IcuEvent]): RDD[NoteEvent] = {
     /** Appy tf-idf to identify the 500 most informative words in each patient's notes   */
-    val sc = icuNotes.sparkContext
+
     // define stopwords; list from Onix
     //  data specific stopwords appended at the end after the word 'z'
-    val stopwords  = Set("a", "about", "above", "across", "after", "again", "against", "all",
+    val stopwords = Set("a", "about", "above", "across", "after", "again", "against", "all",
       "almost", "alone", "along", "already", "also", "although", "always", "among", "an",
       "and", "another", "any", "anybody", "anyone", "anything", "anywhere", "are", "area",
       "areas", "around", "as", "ask", "asked", "asking", "asks", "at", "away", "b", "back",
@@ -160,14 +189,14 @@ object FeatureConstruction {
       "want", "wanted", "wanting", "wants", "was", "way", "ways", "we", "well", "wells", "went", "were", "what",
       "when", "where", "whether", "which", "while", "who", "whole", "whose", "why", "will", "with", "within", "without",
       "work", "worked", "working", "works", "would", "x", "y", "year", "years", "yet", "you", "young", "younger",
-      "youngest", "your", "yours", "z", "name", "note")
+      "youngest", "your", "yours", "z", "name", "note", "patient")
 
-    val patientnotes = icuNotes.map( f => (f.subject_id.toInt, f.text))
+    val patientnotes = icuNotes.map(f => (f.subject_id.toInt, f.text))
 
     // get the patient and  each of their notes tokenized after some processing
-    val tokenizednotes: RDD[(Int, Array[String])] = patientnotes.map{
+    val tokenizednotes: RDD[(Int, Array[String])] = patientnotes.map {
       f =>
-        val notext:String = f._2
+        val notext: String = f._2
         val tokenizedtext = notext.toLowerCase.split("\\s").filter(_.length > 3).filter(f => !stopwords.contains(f))
         (f._1, tokenizedtext)
     }
@@ -177,7 +206,7 @@ object FeatureConstruction {
 
     val hashingTF = new HashingTF()
 
-    val hashednotes = patandnotes.map{
+    val hashednotes = patandnotes.map {
       f =>
         (f._1, hashingTF.transform(f._2))
     }
@@ -188,7 +217,7 @@ object FeatureConstruction {
     val tfidf = idf.transform(justnotes)
 
     // take 500 most informative words in each patient's entire set of notes
-    val Patienttop500words = tfidf.map(x => x.toSparse).map{x => x.indices.zip(x.values)
+    val Patienttop500words = tfidf.map(x => x.toSparse).map { x => x.indices.zip(x.values)
       .sortBy(-_._2)
       .take(500)
       .map(_._1)
@@ -218,16 +247,16 @@ object FeatureConstruction {
 
     // generate document vectors for LDA
     val documents: RDD[(Long, Vector)] = patandnotes.map { f =>
-    val counts = new mutable.HashMap[Int, Double]()
-     f._2.foreach{ word =>
-       val hashid = hashingTF.indexOf(word)
-       if (vocab.contains(hashid)) {
-         val idx = vocab(hashid)
-         counts(idx) = counts.getOrElse(idx, 0.0) + 1.0
-       }
-     }
+      val counts = new mutable.HashMap[Int, Double]()
+      f._2.foreach { word =>
+        val hashid = hashingTF.indexOf(word)
+        if (vocab.contains(hashid)) {
+          val idx = vocab(hashid)
+          counts(idx) = counts.getOrElse(idx, 0.0) + 1.0
+        }
+      }
       (f._1.toLong, Vectors.sparse(vocab.size, counts.toSeq))
-     }
+    }
 
     //println("THIS IS HASHMAP")
     //vocab.take(10).foreach(println)
@@ -246,21 +275,22 @@ object FeatureConstruction {
     // Print topics, showing top-weighted 10 terms for each topic.
     // Not required unless you want to see topics
     /**
-    val topicIndices = ldaModel.describeTopics(maxTermsPerTopic = 10)
-    topicIndices.foreach { case (terms, termWeights) =>
-      println("TOPIC:")
-      terms.zip(termWeights).foreach { case (term, weight) =>
-        print(s"${wordmap(reversevocab(term.toInt))}\t")
-      }
-      println()
-    }
+      * val topicIndices = ldaModel.describeTopics(maxTermsPerTopic = 10)
+      * topicIndices.foreach { case (terms, termWeights) =>
+      * println("TOPIC:")
+      * terms.zip(termWeights).foreach { case (term, weight) =>
+      * print(s"${wordmap(reversevocab(term.toInt))}\t")
+      * }
+      * println()
+      * }
       */
 
 
     val docinTocs = distributedLDAModel.toLocal.topicDistributions(documents)
-    docinTocs.take(5).foreach(println)
 
-    List(1,2,3)
+    val patDoc = docinTocs.map(f => NoteEvent(f._1.toInt, f._2))
+
+    patDoc
   }
 
 }
