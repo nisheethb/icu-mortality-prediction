@@ -115,11 +115,11 @@ object Main {
     // Retrospective Topic + Admission Model - 53 features ---------------------------
     // first combine the two vectors
     val topicadm_features = dpatientTopics.rdd.map(row =>
-      (row.getAs[Double](1),
-        row.getAs[Double](2),
-        row.getAs[Double](3),
-        row.getAs[Double](4),
-      row.getAs[Vector](7))
+      (row.getAs[Double](1), //expire_flg
+        row.getAs[Double](2), //gender
+        row.getAs[Int](3), //age
+        row.getAs[Double](4), //sapsi-first
+      row.getAs[Vector](7)) //notesvector
     )
 
     val topicADM_LP = FeatureConstruction.construct_LP_for_TopicADM(topicadm_features)

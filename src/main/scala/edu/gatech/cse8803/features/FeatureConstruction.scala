@@ -144,7 +144,7 @@ object FeatureConstruction {
   }
 
 
- def construct_LP_for_TopicADM(topicadmFeatures:RDD[(Double, Double, Double, Double, Vector)]):RDD[LabeledPoint] = {
+ def construct_LP_for_TopicADM(topicadmFeatures:RDD[(Double, Double, Int, Double, Vector)]):RDD[LabeledPoint] = {
    val labeled = topicadmFeatures.map{
      f =>
        val label = f._1
