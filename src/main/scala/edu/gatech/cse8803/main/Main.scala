@@ -28,7 +28,7 @@ object Main {
     val sqlContext = new SQLContext(sc)
 
     /** initialize loading of data */
-    val (patientDetails, icuDetails) = loadRddRawData(sqlContext)
+    val (patientDetails, comorbidityDetails, icuDetails) = loadRddRawData(sqlContext)
     val normedFeatures = FeatureConstruction.normalizeFeatures(patientDetails)
     val filteredFeatures = normedFeatures.filter(f => f.icustay_seq_num == 1)
 
@@ -58,9 +58,7 @@ object Main {
 
     // Use the structured features
     // Apply tf-idf
-    val vectfidf = FeatureConstruction.applytfidf(icuDetails)
-
-    vectfidf.foreach(println)
+    val vectfidf = FeatureConstruction.vectorizeNotes(icuDetails)
 
 
     sc.stop()
@@ -77,20 +75,36 @@ object Main {
     val patientDetails = sqlContext.sql( // fix this
       """
         |SELECT subject_id, gender, hadm_id, icustay_total_num, subject_icustay_seq,
-        |icustay_admit_age, icustay_expire_flg, sapsi_first, sofa_first
+        |icustay_admit_age, icustay_expire_flg, sapsi_first, sapsi_min, sapsi_max
         |FROM icustay_detail
       """.stripMargin)
       .map(r => PatientEvent(r(0).toString, r(1).toString, r(2).toString, r(3).toString,
-        r(4).toString, r(5).toString, r(6).toString, r(7).toString, r(8).toString))
+        r(4).toString, r(5).toString, r(6).toString, r(7).toString, r(8).toString, r(9).toString))
+
+    val comorbidityDetails = sqlContext.sql(
+      """
+        |SELECT congestive_heart_failure, cardiac_arrhythmias, valvular_disease, pulmonary_circulation,
+        |	peripheral_vascular, hypertension, paralysis, other_neurological, chronic_pulmonary,
+        | diabetes_uncomplicated, diabetes_complicated,	hypothyroidism, renal_failure, liver_disease,	peptic_ulcer,
+        | aids,	lymphoma,	metastatic_cancer, solid_tumor, rheumatoid_arthritis, coagulopathy, obesity, weight_loss,
+        | fluid_electrolyte, blood_loss_anemia, deficiency_anemias, alcohol_abuse, drug_abuse, psychoses, depression
+        |FROM comorbidity_scores
+      """.stripMargin)
+        .map(r => MorbidityEvent(r(0).toString, r(1).toString, r(2).toString, r(3).toString, r(4).toString,
+          r(5).toString, r(6).toString, r(7).toString, r(8).toString, r(9).toString, r(10).toString,
+          r(11).toString, r(12).toString, r(13).toString, r(14).toString, r(15).toString, r(16).toString,
+          r(17).toString, r(18).toString, r(19).toString, r(20).toString, r(21).toString, r(22).toString,
+          r(23).toString, r(24).toString, r(25).toString, r(26).toString, r(27).toString, r(28).toString,
+          r(29).toString, r(30).toString))
 
     val icuDetails = sqlContext.sql(
       """
-        |SELECT subject_id, charttime, text
+        |SELECT subject_id, text
         |FROM notesprocess
       """.stripMargin
-    ).map(r => IcuEvent(r(0).toString, r(1).toString, r(2).toString))
+    ).map(r => IcuEvent(r(0).toString, r(1).toString))
 
-    (patientDetails, icuDetails)
+    (patientDetails, comorbidityDetails, icuDetails)
 
   }
 

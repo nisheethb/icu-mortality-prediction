@@ -115,7 +115,7 @@ object FeatureConstruction {
     labeled
   }
 
-  def applytfidf(icuNotes:RDD[IcuEvent]): List[Int] = {
+  def vectorizeNotes(icuNotes:RDD[IcuEvent]): List[Int] = {
     /** Appy tf-idf to identify the 500 most informative words in each patient's notes   */
     val sc = icuNotes.sparkContext
     // define stopwords; list from Onix
@@ -201,61 +201,22 @@ object FeatureConstruction {
     //val something = Patienttop500words.map( f => f.length)
     //something.collect.foreach(println)
 
-    /*-----------------IGNORE-----------------------------
-    val notes = icuNotes.map(f => f.text)
-    val corpus: RDD[String] = notes
-    // Split each document into a sequence of terms (words)
-    val tokenized: RDD[Seq[String]] =
-      corpus.map(_.toLowerCase.split("\\s")).map(_.filter(_.length > 3).filter(_.forall(java.lang.Character.isLetter)))
-
-    // Choose the vocabulary.
-    //   termCounts: Sorted list of (term, termCount) pairs
-    val termCounts: Array[(String, Long)] =
-      tokenized.flatMap(_.map(_ -> 1L)).reduceByKey(_ + _).collect().sortBy(-_._2)
-
-    val hashingTF1 = new HashingTF()
-    val tf: RDD[Vector] = hashingTF1.transform(tokenized)
-    //tf.take(5).foreach(println)
-    val termVector = termCounts.map(f => f._2)
-
-
-    //   vocabArray: Chosen vocab (removing common terms)
-    val numStopwords = 20
-    val vocabArray: Array[String] =
-      termCounts.takeRight(termCounts.size - numStopwords).map(_._1)
-    //   vocab: Map term -> term index
-    val vocab: Map[String, Int] = vocabArray.zipWithIndex.toMap
-
-    val vocabsize = vocab.values.size
-    println("vocabsize", vocabsize)
-
-    // Convert documents into term count vectors
-    val documents: RDD[(Long, Vector)] =
-      tokenized.zipWithIndex.map { case (tokens, id) =>
-        val counts = new mutable.HashMap[Int, Double]()
-        tokens.foreach { term =>
-          if (vocab.contains(term)) {
-            val idx = vocab(term)
-            counts(idx) = counts.getOrElse(idx, 0.0) + 1.0
-          }
-        }
-        (id, Vectors.sparse(vocab.size, counts.toSeq))
-      }
-
-    --------------------------------------------------------**/
-
     // vocab dictionary (hashid, zippedID)
     val vocab: Map[Int, Int] = vocabulary.zipWithIndex.toMap
-    val reversevocab = vocab.map(f => (f._2, f._1))
+    //The following is not required unless you want to see the topic words
+    //val reversevocab = vocab.map(f => (f._2, f._1))
 
-    //
+    // This is not required unless you want to see the words in the LDA topics
+    /*
     val allwords = patandnotes.flatMap(_._2).filter(f => vocab.contains(hashingTF.indexOf(f)))
     val wordmap = allwords.map{
       f =>
         val hashval = hashingTF.indexOf(f)
         (hashval, f)
     }.collectAsMap()
+    */
 
+    // generate document vectors for LDA
     val documents: RDD[(Long, Vector)] = patandnotes.map { f =>
     val counts = new mutable.HashMap[Int, Double]()
      f._2.foreach{ word =>
@@ -268,23 +229,23 @@ object FeatureConstruction {
       (f._1.toLong, Vectors.sparse(vocab.size, counts.toSeq))
      }
 
-    println("THIS IS HASHMAP")
-    vocab.take(10).foreach(println)
+    //println("THIS IS HASHMAP")
+    //vocab.take(10).foreach(println)
 
-    println("THIS IS WORDMAP")
-    wordmap.take(10).foreach(println)
+    //println("THIS IS WORDMAP")
+    //wordmap.take(10).foreach(println)
 
-    // Set LDA parameters
+    // Set LDA parameters and build LDA model
     val numTopics = 50
     val lda = new LDA().setK(numTopics).setMaxIterations(30)
-
     val ldaModel = lda.run(documents)
 
     val avgLogLikelihood = ldaModel.asInstanceOf[DistributedLDAModel].logLikelihood / documents.count()
-
     val distributedLDAModel = ldaModel.asInstanceOf[DistributedLDAModel]
 
     // Print topics, showing top-weighted 10 terms for each topic.
+    // Not required unless you want to see topics
+    /**
     val topicIndices = ldaModel.describeTopics(maxTermsPerTopic = 10)
     topicIndices.foreach { case (terms, termWeights) =>
       println("TOPIC:")
@@ -293,14 +254,11 @@ object FeatureConstruction {
       }
       println()
     }
-
-
-    val patlda =
-
-      println("lda done")
+      */
 
 
     val docinTocs = distributedLDAModel.toLocal.topicDistributions(documents)
+    docinTocs.take(5).foreach(println)
 
     List(1,2,3)
   }
