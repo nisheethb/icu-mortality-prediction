@@ -36,11 +36,11 @@ object FeatureConstruction {
     val numericFeatures = icuEvents.map{
       f =>
         val subid = f.subject_id.toInt
-        val sex: Int = {
+        val sex: Double = {
           if (f.gender == "F")
-            0
+            0.0
           else
-            1
+            1.0
         }
         val hadmid: Int = {
           if (f.hadm_id.isEmpty)
@@ -135,16 +135,16 @@ object FeatureConstruction {
     val labeled = normedPatientEvents.map{
       f =>
         if (f.icustay_expire_flg == 0.0)
-          LabeledPoint(0, Vectors.dense(f.age, f.gender.toDouble, f.sapsi_first))
+          LabeledPoint(0, Vectors.dense(f.age, f.gender, f.sapsi_first))
         else
-          LabeledPoint(1, Vectors.dense(f.age, f.gender.toDouble, f.sapsi_first))
+          LabeledPoint(1, Vectors.dense(f.age, f.gender, f.sapsi_first))
     }
 
     labeled
   }
 
 
- def construct_LP_for_TopicADM(topicadmFeatures:RDD[(Double, Double, Int, Double, Vector)]):RDD[LabeledPoint] = {
+ def construct_LP_for_TopicADM(topicadmFeatures:RDD[(Double, Double, Double, Double, Vector)]):RDD[LabeledPoint] = {
    val labeled = topicadmFeatures.map{
      f =>
        val label = f._1

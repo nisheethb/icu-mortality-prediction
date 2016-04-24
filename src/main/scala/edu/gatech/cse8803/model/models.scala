@@ -21,7 +21,7 @@ case class NoteEvent(subject_id:Long, document:Vector)
                           eh30:String)
   */
 
-case class NormalizedPatientEvent(subject_id: Int, gender: Int, hadm_id:Int, icustay_total_num:Int,
+case class NormalizedPatientEvent(subject_id: Int, gender: Double, hadm_id:Int, icustay_total_num:Int,
                                   icustay_seq_num: Int, age:Double, sapsi_first:Double, sapsi_min:Double,
                                   sapsi_max:Double, icustay_expire_flg:Double)
 

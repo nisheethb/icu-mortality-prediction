@@ -32,11 +32,15 @@ object Main {
 
     import sqlContext.implicits._
 
+    var result:String = "Hello"
+    result += Calendar.getInstance().getTime.toString + "\n"
     println(Calendar.getInstance().getTime.toString)
     /** initialize loading of data */
     val (patientDetails, icuDetails) = loadRddRawData(sqlContext)
     val normedFeatures = FeatureConstruction.normalizeFeatures(patientDetails).filter(f => f.icustay_seq_num == 1)
 
+    result += Calendar.getInstance().getTime.toString + "\n"
+    result += "Loaded and processed data \n"
     println(Calendar.getInstance().getTime.toString,  "Loaded and processed data")
     // Admission Baseline Model - 3 features -------------------------------------------------
 
@@ -46,7 +50,7 @@ object Main {
     val train_ABL = splits_ABL(0).cache()
     val test_ABL = splits_ABL(1).cache()
 
-    val numIterations = 100
+    val numIterations = 10
     val model_ABL = SVMWithSGD.train(train_ABL, numIterations)
     model_ABL.clearThreshold()
 
@@ -60,6 +64,8 @@ object Main {
     val metrics_ABL = new BinaryClassificationMetrics(scoreAndLabels_ABL)
     val auROC_ABL = metrics_ABL.areaUnderROC()
 
+    result += Calendar.getInstance().getTime.toString + "\n"
+    result += "Area under ROC for Admission Baseline = " + auROC_ABL.toString + "\n"
     println(Calendar.getInstance().getTime.toString)
     println("Area under ROC for Admission Baseline = " + auROC_ABL)
 
@@ -81,6 +87,8 @@ object Main {
         |ON p.subject_id = d.subject_id
       """.stripMargin)
 
+    result += Calendar.getInstance().getTime.toString + "\n"
+    result += "Joined the data sources\n"
     println(Calendar.getInstance().getTime.toString)
     println("Joined the data sources")
 
@@ -109,6 +117,8 @@ object Main {
     val metrics_RT = new BinaryClassificationMetrics(scoreAndLabels_RT)
     val auROC_RT = metrics_RT.areaUnderROC()
 
+    result += Calendar.getInstance().getTime.toString + "\n"
+    result += "Area under ROC for Retrospective Topics = " + auROC_RT.toString + "\n"
     println(Calendar.getInstance().getTime.toString)
     println("Area under ROC for Retrospective Topics = " + auROC_RT)
 
@@ -117,7 +127,7 @@ object Main {
     val topicadm_features = dpatientTopics.rdd.map(row =>
       (row.getAs[Double](1), //expire_flg
         row.getAs[Double](2), //gender
-        row.getAs[Int](3), //age
+        row.getAs[Double](3), //age
         row.getAs[Double](4), //sapsi-first
       row.getAs[Vector](7)) //notesvector
     )
@@ -142,8 +152,14 @@ object Main {
     val metrics_tADM = new BinaryClassificationMetrics(scoreAndLabels_tADM)
     val auROC_tADM = metrics_tADM.areaUnderROC()
 
+    result += Calendar.getInstance().getTime.toString + "\n"
+    result += "Area under ROC for Retrospective Topics and Admission Model = " + auROC_tADM.toString + "\n"
     println(Calendar.getInstance().getTime.toString)
     println("Area under ROC for Retrospective Topics and Admission Model = " + auROC_tADM)
+
+    val res = sc.parallelize(result)
+    res.foreach(println)
+    res.saveAsTextFile("data/output")
 
     sc.stop()
   }
@@ -153,8 +169,15 @@ object Main {
     /** Load in the data */
     val dateFormat = new SimpleDateFormat("dd-MM-yyyy'  'hh:mm:ss a")
 
-    List("data/icustay_detail.csv", "data/comorbidity_scores.csv", "data/notesprocess.csv")
+    List("data/icustay_detail.csv",
+      "data/notesprocess.csv")
       .foreach(CSVUtils.loadCSVAsTable(sqlContext, _))
+
+    /**
+    List("https://s3.amazonaws.com/nb-icu-mortality-prediction/sample_data/icustay_detail.csv",
+      "https://s3.amazonaws.com/nb-icu-mortality-prediction/sample_data/notesprocess.csv")
+      .foreach(CSVUtils.loadCSVAsTable(sqlContext, _))
+      */
 
     val patientDetails = sqlContext.sql( // fix this
       """
