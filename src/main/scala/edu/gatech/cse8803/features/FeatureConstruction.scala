@@ -187,19 +187,23 @@ object FeatureConstruction {
     val idf = new IDF().fit(justnotes)
     val tfidf = idf.transform(justnotes)
 
+    // take 500 most informative words in each patient's entire set of notes
     val Patienttop500words = tfidf.map(x => x.toSparse).map{x => x.indices.zip(x.values)
       .sortBy(-_._2)
       .take(500)
       .map(_._1)
     }
 
+    // combine the words from all patients above into one big set
     val vocabulary = Patienttop500words.collect.flatten.toSet
-
     val sizeVoc = vocabulary.size
-    println("vocabulary size", sizeVoc)
+    //println("vocabulary size", sizeVoc)
     //val something = Patienttop500words.map( f => f.length)
     //something.collect.foreach(println)
 
+
+
+    /*-----------------IGNORE-----------------------------
     val notes = icuNotes.map(f => f.text)
     val corpus: RDD[String] = notes
     // Split each document into a sequence of terms (words)
@@ -240,6 +244,22 @@ object FeatureConstruction {
         (id, Vectors.sparse(vocab.size, counts.toSeq))
       }
 
+    --------------------------------------------------------**/
+    // vocab dictionary (hashid, zippedID)
+    val vocab: Map[Int, Int] = vocabulary.zipWithIndex.toMap
+
+    val documents: RDD[(Long, Vector)] = patandnotes.map { f =>
+    val counts = new mutable.HashMap[Int, Double]()
+     f._2.foreach{ word =>
+       val hashid = hashingTF.indexOf(word)
+       if (vocab.contains(hashid)) {
+         val idx = vocab(hashid)
+         counts(idx) = counts.getOrElse(idx, 0.0) + 1.0
+       }
+     }
+      (f._1.toLong, Vectors.sparse(vocab.size, counts.toSeq))
+     }
+
     // Set LDA parameters
     val numTopics = 50
     val lda = new LDA().setK(numTopics).setMaxIterations(30)
@@ -250,7 +270,7 @@ object FeatureConstruction {
 
     val distributedLDAModel = ldaModel.asInstanceOf[DistributedLDAModel]
 
-    // Print topics, showing top-weighted 10 terms for each topic.
+    /** Print topics, showing top-weighted 10 terms for each topic.
     val topicIndices = ldaModel.describeTopics(maxTermsPerTopic = 10)
     topicIndices.foreach { case (terms, termWeights) =>
       println("TOPIC:")
@@ -259,6 +279,11 @@ object FeatureConstruction {
       }
       println()
     }
+
+      */
+
+
+      println("lda done")
 
 
     val docinTocs = distributedLDAModel.toLocal.topicDistributions(documents)
