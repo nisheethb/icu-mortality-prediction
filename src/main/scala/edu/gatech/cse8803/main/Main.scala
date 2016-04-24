@@ -5,6 +5,7 @@
 package edu.gatech.cse8803.main
 
 import java.text.SimpleDateFormat
+import java.util.Calendar
 
 import edu.gatech.cse8803.ioutils.CSVUtils
 import edu.gatech.cse8803.features.FeatureConstruction
@@ -12,7 +13,7 @@ import edu.gatech.cse8803.model._
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
-import org.apache.spark.mllib.linalg.Vector
+import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.mllib.classification.{SVMModel, SVMWithSGD}
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.mllib.util.MLUtils
@@ -31,39 +32,22 @@ object Main {
 
     import sqlContext.implicits._
 
+    println(Calendar.getInstance().getTime.toString)
     /** initialize loading of data */
     val (patientDetails, icuDetails) = loadRddRawData(sqlContext)
     val normedFeatures = FeatureConstruction.normalizeFeatures(patientDetails).filter(f => f.icustay_seq_num == 1)
 
+    println(Calendar.getInstance().getTime.toString,  "Loaded and processed data")
+    // Admission Baseline Model - 3 features -------------------------------------------------
+
     val AdmBase_LP = FeatureConstruction.construct_LP_for_AdmBaseline(normedFeatures)
-    val PatientNoteTopics = FeatureConstruction.vectorizeNotes(icuDetails).toDF()
-    PatientNoteTopics.registerTempTable("patientNotes")
 
-    val patientDs = normedFeatures.toDF()
-    patientDs.registerTempTable("patient_d")
-
-    val RTopics = sqlContext.sql(
-      """
-        |SELECT p.subject_id, d.icustay_expire_flg, p.document
-        |FROM patientNotes p
-        |JOIN patient_d d
-        |ON p.subject_id = d.subject_id
-      """.stripMargin)
-
-    val RTopics_LP = RTopics.rdd.map(row => LabeledPoint(
-      row.getAs[Double](1),
-      row.getAs[Vector]{2}
-    ))
-
-    // Do R Topics
     val splits_ABL = AdmBase_LP.randomSplit(Array(0.7, 0.3), seed=8803L)
     val train_ABL = splits_ABL(0).cache()
     val test_ABL = splits_ABL(1).cache()
 
     val numIterations = 100
-
     val model_ABL = SVMWithSGD.train(train_ABL, numIterations)
-
     model_ABL.clearThreshold()
 
     // Compute raw scores on the test set.
@@ -76,10 +60,36 @@ object Main {
     val metrics_ABL = new BinaryClassificationMetrics(scoreAndLabels_ABL)
     val auROC_ABL = metrics_ABL.areaUnderROC()
 
-    println("Area under ROC = " + auROC_ABL)
+    println(Calendar.getInstance().getTime.toString)
+    println("Area under ROC for Admission Baseline = " + auROC_ABL)
 
+    val PatientNoteTopics = FeatureConstruction.vectorizeNotes(icuDetails).toDF()
+    println(Calendar.getInstance().getTime.toString)
+    println("LDA done")
 
-    // Do R Topics----------------------------------------------------
+    PatientNoteTopics.registerTempTable("patientNotes")
+
+    val patientDs = normedFeatures.toDF()
+    patientDs.registerTempTable("patient_d")
+
+    val dpatientTopics = sqlContext.sql(
+      """
+        |SELECT d.subject_id, d.icustay_expire_flg, d.gender, d.age, d.sapsi_first,
+        | d.sapsi_min, d.sapsi_max, p.document
+        |FROM patientNotes p
+        |JOIN patient_d d
+        |ON p.subject_id = d.subject_id
+      """.stripMargin)
+
+    println(Calendar.getInstance().getTime.toString)
+    println("Joined the data sources")
+
+    // Retrospective Topic Model - 50 features -------------------------------------
+    val RTopics_LP = dpatientTopics.rdd.map(row => LabeledPoint(
+      row.getAs[Double](1),
+      row.getAs[Vector]{7}
+    ))
+
     val splits_RT = RTopics_LP.randomSplit(Array(0.7, 0.3), seed=8803L)
     val train_RT = splits_RT(0).cache()
     val test_RT = splits_RT(1).cache()
@@ -87,6 +97,7 @@ object Main {
     val model_RT = SVMWithSGD.train(train_RT, numIterations)
 
     model_RT.clearThreshold()
+
 
     // Compute raw scores on the test set.
     val scoreAndLabels_RT = test_RT.map { point =>
@@ -98,7 +109,41 @@ object Main {
     val metrics_RT = new BinaryClassificationMetrics(scoreAndLabels_RT)
     val auROC_RT = metrics_RT.areaUnderROC()
 
-    println("Area under ROC for R Topics = " + auROC_RT)
+    println(Calendar.getInstance().getTime.toString)
+    println("Area under ROC for Retrospective Topics = " + auROC_RT)
+
+    // Retrospective Topic + Admission Model - 53 features ---------------------------
+    // first combine the two vectors
+    val topicadm_features = dpatientTopics.rdd.map(row =>
+      (row.getAs[Double](1),
+        row.getAs[Double](2),
+        row.getAs[Double](3),
+        row.getAs[Double](4),
+      row.getAs[Vector](7))
+    )
+
+    val topicADM_LP = FeatureConstruction.construct_LP_for_TopicADM(topicadm_features)
+    val splits_tADM = topicADM_LP.randomSplit(Array(0.7, 0.3), seed=8803L)
+    val train_tADM = splits_tADM(0).cache()
+    val test_tADM = splits_tADM(1).cache()
+
+    val model_tADM = SVMWithSGD.train(train_tADM, numIterations)
+
+    model_tADM.clearThreshold()
+
+
+    // Compute raw scores on the test set.
+    val scoreAndLabels_tADM = test_tADM.map { point =>
+      val score = model_tADM.predict(point.features)
+      (score, point.label)
+    }
+
+    // Get evaluation metrics.
+    val metrics_tADM = new BinaryClassificationMetrics(scoreAndLabels_tADM)
+    val auROC_tADM = metrics_tADM.areaUnderROC()
+
+    println(Calendar.getInstance().getTime.toString)
+    println("Area under ROC for Retrospective Topics and Admission Model = " + auROC_tADM)
 
     sc.stop()
   }

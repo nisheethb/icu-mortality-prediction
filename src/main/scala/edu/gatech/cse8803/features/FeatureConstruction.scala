@@ -4,6 +4,7 @@ package edu.gatech.cse8803.features
   * @author Nisheeth Bandaru
   * */
 
+import breeze.linalg.{DenseVector, SparseVector}
 import edu.gatech.cse8803.model._
 import org.apache.spark.ml.feature.CountVectorizer
 import org.apache.spark.sql.types.{StructType, StructField, StringType}
@@ -143,6 +144,19 @@ object FeatureConstruction {
   }
 
 
+ def construct_LP_for_TopicADM(topicadmFeatures:RDD[(Double, Double, Double, Double, Vector)]):RDD[LabeledPoint] = {
+   val labeled = topicadmFeatures.map{
+     f =>
+       val label = f._1
+       val structVec = Seq(f._2.toDouble, f._3.toDouble, f._4.toDouble).toArray
+       val unstructVec = f._5.toArray
+       val completeArray = Array.concat(structVec, unstructVec)
+       val featvec = Vectors.dense(completeArray)
+       LabeledPoint(label, featvec)
+   }
+
+   labeled
+ }
 
   def vectorizeNotes(icuNotes:RDD[IcuEvent]): RDD[NoteEvent] = {
     /** Appy tf-idf to identify the 500 most informative words in each patient's notes   */
