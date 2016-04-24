@@ -201,8 +201,6 @@ object FeatureConstruction {
     //val something = Patienttop500words.map( f => f.length)
     //something.collect.foreach(println)
 
-
-
     /*-----------------IGNORE-----------------------------
     val notes = icuNotes.map(f => f.text)
     val corpus: RDD[String] = notes
@@ -245,8 +243,18 @@ object FeatureConstruction {
       }
 
     --------------------------------------------------------**/
+
     // vocab dictionary (hashid, zippedID)
     val vocab: Map[Int, Int] = vocabulary.zipWithIndex.toMap
+    val reversevocab = vocab.map(f => (f._2, f._1))
+
+    //
+    val allwords = patandnotes.flatMap(_._2).filter(f => vocab.contains(hashingTF.indexOf(f)))
+    val wordmap = allwords.map{
+      f =>
+        val hashval = hashingTF.indexOf(f)
+        (hashval, f)
+    }.collectAsMap()
 
     val documents: RDD[(Long, Vector)] = patandnotes.map { f =>
     val counts = new mutable.HashMap[Int, Double]()
@@ -260,6 +268,12 @@ object FeatureConstruction {
       (f._1.toLong, Vectors.sparse(vocab.size, counts.toSeq))
      }
 
+    println("THIS IS HASHMAP")
+    vocab.take(10).foreach(println)
+
+    println("THIS IS WORDMAP")
+    wordmap.take(10).foreach(println)
+
     // Set LDA parameters
     val numTopics = 50
     val lda = new LDA().setK(numTopics).setMaxIterations(30)
@@ -270,18 +284,18 @@ object FeatureConstruction {
 
     val distributedLDAModel = ldaModel.asInstanceOf[DistributedLDAModel]
 
-    /** Print topics, showing top-weighted 10 terms for each topic.
+    // Print topics, showing top-weighted 10 terms for each topic.
     val topicIndices = ldaModel.describeTopics(maxTermsPerTopic = 10)
     topicIndices.foreach { case (terms, termWeights) =>
       println("TOPIC:")
       terms.zip(termWeights).foreach { case (term, weight) =>
-        print(s"${vocabArray(term.toInt)}\t")
+        print(s"${wordmap(reversevocab(term.toInt))}\t")
       }
       println()
     }
 
-      */
 
+    val patlda =
 
       println("lda done")
 
